@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { generateContent } from '@/lib/gemini';
 import { getUploadPath } from '@/lib/storage';
 import { BlockType, UploadKind } from '@prisma/client';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { readFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 
@@ -50,106 +51,119 @@ async function classifyUpload(upload: { storedPath: string; mimeType: string }) 
 }
 
 export async function POST(request: Request) {
-  const body = await request.json();
-  const uploadIds: string[] = body.uploadIds ?? [];
-  const outfitName: string = body.outfitName ?? 'Nuovo outfit';
+  try {
+    const body = await request.json();
+    const uploadIds: string[] = body.uploadIds ?? [];
+    const outfitName: string = body.outfitName ?? 'Nuovo outfit';
 
-  if (!uploadIds.length) {
-    return NextResponse.json({ error: 'Nessuna immagine da analizzare' }, { status: 400 });
-  }
-
-  const uploads = await prisma.upload.findMany({
-    where: { id: { in: uploadIds } },
-    orderBy: { createdAt: 'asc' },
-  });
-
-  type BlockImage = { id: string; classification: Classification };
-
-  const outfit = await prisma.outfit.create({
-    data: {
-      id: randomUUID(),
-      name: outfitName,
-      status: 'CONFIGURING',
-    },
-  });
-
-  let order = 0;
-  let currentBlock: { type: BlockType; uploads: BlockImage[] } | null = null;
-  const blocks: { id: string; type: BlockType; imageIds: string[] }[] = [];
-
-  for (const upload of uploads) {
-    const classification = await classifyUpload(upload);
-    const kind = classification.subjectType === 'mannequin'
-      ? UploadKind.MANNEQUIN
-      : classification.subjectType === 'hanging'
-      ? UploadKind.HANGING
-      : UploadKind.UNKNOWN;
-
-    await prisma.upload.update({
-      where: { id: upload.id },
-      data: {
-        kind,
-        metadata: {
-          ...(upload.metadata as Record<string, unknown> | null ?? {}),
-          classification,
-        },
-      },
-    });
-
-    const blockType = kind === UploadKind.HANGING ? BlockType.HANGING_VARIANT : BlockType.OUTFIT;
-    if (!currentBlock || currentBlock.type !== blockType) {
-      if (currentBlock) {
-        const blockId = randomUUID();
-        await prisma.outfitBlock.create({
-          data: {
-            id: blockId,
-            outfitId: outfit.id,
-            order,
-            type: currentBlock.type,
-          },
-        });
-        for (const image of currentBlock.uploads) {
-          await prisma.outfitBlockImage.create({
-            data: {
-              id: randomUUID(),
-              blockId,
-              uploadId: image.id,
-              angle: image.classification.angle ?? null,
-              role: image.classification.angle ?? null,
-            },
-          });
-        }
-        blocks.push({ id: blockId, type: currentBlock.type, imageIds: currentBlock.uploads.map((img) => img.id) });
-        order += 1;
-      }
-      currentBlock = { type: blockType, uploads: [] };
+    if (!uploadIds.length) {
+      return NextResponse.json({ error: 'Nessuna immagine da analizzare' }, { status: 400 });
     }
-    currentBlock.uploads.push({ id: upload.id, classification });
-  }
 
-  if (currentBlock) {
-    const blockId = randomUUID();
-    await prisma.outfitBlock.create({
+    const uploads = await prisma.upload.findMany({
+      where: { id: { in: uploadIds } },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    type BlockImage = { id: string; classification: Classification };
+
+    const outfit = await prisma.outfit.create({
       data: {
-        id: blockId,
-        outfitId: outfit.id,
-        order,
-        type: currentBlock.type,
+        id: randomUUID(),
+        name: outfitName,
+        status: 'CONFIGURING',
       },
     });
-    for (const image of currentBlock.uploads) {
-      await prisma.outfitBlockImage.create({
+
+    let order = 0;
+    let currentBlock: { type: BlockType; uploads: BlockImage[] } | null = null;
+    const blocks: { id: string; type: BlockType; imageIds: string[] }[] = [];
+
+    for (const upload of uploads) {
+      const classification = await classifyUpload(upload);
+      const kind = classification.subjectType === 'mannequin'
+        ? UploadKind.MANNEQUIN
+        : classification.subjectType === 'hanging'
+        ? UploadKind.HANGING
+        : UploadKind.UNKNOWN;
+
+      await prisma.upload.update({
+        where: { id: upload.id },
         data: {
-          id: randomUUID(),
-          blockId,
-          uploadId: image.id,
-          angle: image.classification.angle ?? null,
-          role: image.classification.angle ?? null,
+          kind,
+          metadata: {
+            ...(upload.metadata as Record<string, unknown> | null ?? {}),
+            classification,
+          },
         },
       });
-    }
-    blocks.push({ id: blockId, type: currentBlock.type, imageIds: currentBlock.uploads.map((img) => img.id) });
-  }
 
-  return NextResponse.json({ outfitId: outfit.id, blocks });
+      const blockType = kind === UploadKind.HANGING ? BlockType.HANGING_VARIANT : BlockType.OUTFIT;
+      if (!currentBlock || currentBlock.type !== blockType) {
+        if (currentBlock) {
+          const blockId = randomUUID();
+          await prisma.outfitBlock.create({
+            data: {
+              id: blockId,
+              outfitId: outfit.id,
+              order,
+              type: currentBlock.type,
+            },
+          });
+          for (const image of currentBlock.uploads) {
+            await prisma.outfitBlockImage.create({
+              data: {
+                id: randomUUID(),
+                blockId,
+                uploadId: image.id,
+                angle: image.classification.angle ?? null,
+                role: image.classification.angle ?? null,
+              },
+            });
+          }
+          blocks.push({ id: blockId, type: currentBlock.type, imageIds: currentBlock.uploads.map((img) => img.id) });
+          order += 1;
+        }
+        currentBlock = { type: blockType, uploads: [] };
+      }
+      currentBlock.uploads.push({ id: upload.id, classification });
+    }
+
+    if (currentBlock) {
+      const blockId = randomUUID();
+      await prisma.outfitBlock.create({
+        data: {
+          id: blockId,
+          outfitId: outfit.id,
+          order,
+          type: currentBlock.type,
+        },
+      });
+      for (const image of currentBlock.uploads) {
+        await prisma.outfitBlockImage.create({
+          data: {
+            id: randomUUID(),
+            blockId,
+            uploadId: image.id,
+            angle: image.classification.angle ?? null,
+            role: image.classification.angle ?? null,
+          },
+        });
+      }
+      blocks.push({ id: blockId, type: currentBlock.type, imageIds: currentBlock.uploads.map((img) => img.id) });
+    }
+
+    return NextResponse.json({ outfitId: outfit.id, blocks });
+  } catch (error) {
+    if (error instanceof PrismaClientKnownRequestError && error.code === 'P2021') {
+      return NextResponse.json(
+        {
+          error:
+            'Database non inizializzato. Esegui `npx prisma migrate deploy` (o `npm run prisma:migrate`) e riprova la fase di analisi.',
+        },
+        { status: 500 },
+      );
+    }
+    throw error;
+  }
 }

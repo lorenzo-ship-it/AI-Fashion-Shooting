@@ -16,11 +16,15 @@ Applicazione full-stack basata su Next.js 14 per trasformare foto di manichini e
    cp .env.example .env.local
    ```
    Compilare `GEMINI_API_KEY` e, se necessario, personalizzare il percorso dello storage o del database SQLite.
-3. Generare il client Prisma
+3. Applicare le migrazioni SQLite
+   ```bash
+   npm run prisma:migrate
+   ```
+4. Generare il client Prisma
    ```bash
    npm run prisma:generate
    ```
-4. Avviare il server di sviluppo
+5. Avviare il server di sviluppo
    ```bash
    npm run dev
    ```

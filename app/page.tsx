@@ -30,6 +30,7 @@ export default function Page() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [uploading, setUploading] = useState(false);
   const [loadingOutfit, setLoadingOutfit] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const refreshJob = useCallback(async (id: string) => {
     const response = await fetch(`/api/job/${id}`);
@@ -105,28 +106,42 @@ export default function Page() {
 
   const handleUpload = useCallback(async (files: File[]) => {
     setUploading(true);
+    setErrorMessage(null);
     try {
       const formData = new FormData();
       files.forEach((file) => formData.append('files', file));
       const response = await fetch('/api/upload', { method: 'POST', body: formData });
+      const uploadPayload = await response.json().catch(() => null);
       if (!response.ok) {
-        throw new Error('Errore in upload');
+        const message =
+          (uploadPayload as { error?: string } | null)?.error ?? 'Errore durante il caricamento delle immagini';
+        throw new Error(message);
       }
-      const data = await response.json();
-      setUploads((prev) => [...prev, ...data.uploads]);
+      const uploadsData = (uploadPayload as { uploads?: UploadedImage[] } | null)?.uploads ?? [];
+      if (!uploadsData.length) {
+        throw new Error('Il server non ha restituito gli ID delle immagini caricate');
+      }
+      setUploads((prev) => [...prev, ...uploadsData]);
       const analyze = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uploadIds: data.uploads.map((u: UploadedImage) => u.id) }),
+        body: JSON.stringify({ uploadIds: uploadsData.map((u: UploadedImage) => u.id) }),
       });
+      const analyzePayload = await analyze.json().catch(() => null);
       if (!analyze.ok) {
-        throw new Error('Analisi fallita');
+        const message =
+          (analyzePayload as { error?: string } | null)?.error ?? 'Analisi delle immagini non riuscita';
+        throw new Error(message);
       }
-      const analyzeData = await analyze.json();
+      if (!analyzePayload || typeof analyzePayload !== 'object' || !('outfitId' in analyzePayload)) {
+        throw new Error('Risposta analisi non valida');
+      }
+      const analyzeData = analyzePayload as { outfitId: string };
       setOutfitId(analyzeData.outfitId);
       await refreshOutfit(analyzeData.outfitId);
     } catch (error) {
       console.error(error);
+      setErrorMessage(error instanceof Error ? error.message : 'Si è verificato un errore imprevisto');
     } finally {
       setUploading(false);
     }
@@ -269,6 +284,8 @@ export default function Page() {
       </header>
 
       <UploadGrid uploads={uploads} onUpload={handleUpload} uploading={uploading} />
+
+      {errorMessage && <p className="text-sm text-rose-400">{errorMessage}</p>}
 
       {loadingOutfit && <p className="text-sm text-slate-400">Analisi outfit in corso…</p>}
 
