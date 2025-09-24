@@ -1,0 +1,155 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Upload {
+  id           String   @id
+  originalName String
+  mimeType     String
+  kind         UploadKind
+  storedPath   String
+  createdAt    DateTime @default(now())
+  metadata     Json?
+  outfitBlocks OutfitBlockImage[]
+  variants     Variant[]
+}
+
+enum UploadKind {
+  MANNEQUIN
+  HANGING
+  UNKNOWN
+}
+
+model Outfit {
+  id              String   @id
+  name            String
+  status          OutfitStatus @default(CONFIGURING)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  blocks          OutfitBlock[]
+  garments        Garment[]
+  jobs            GenerationJob[]
+}
+
+enum OutfitStatus {
+  CONFIGURING
+  READY
+  GENERATING
+  COMPLETED
+  ERROR
+}
+
+model OutfitBlock {
+  id        String   @id
+  outfitId  String
+  order     Int
+  type      BlockType
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  outfit    Outfit   @relation(fields: [outfitId], references: [id])
+  images    OutfitBlockImage[]
+  garments  Garment[]
+  variants  Variant[]
+}
+
+enum BlockType {
+  OUTFIT
+  HANGING_VARIANT
+}
+
+model OutfitBlockImage {
+  id        String   @id
+  blockId   String
+  uploadId  String
+  angle     String?
+  role      String?
+  createdAt DateTime @default(now())
+  block     OutfitBlock @relation(fields: [blockId], references: [id])
+  upload    Upload      @relation(fields: [uploadId], references: [id])
+}
+
+model Garment {
+  id          String   @id
+  outfitId    String
+  blockId     String
+  category    GarmentCategory
+  articleCode String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  outfit      Outfit   @relation(fields: [outfitId], references: [id])
+  block       OutfitBlock @relation(fields: [blockId], references: [id])
+  variants    Variant[]
+  generations Generation[]
+}
+
+enum GarmentCategory {
+  ABITO
+  TOP
+  MAGLIERIA
+  PANTALONI
+  GONNE
+  BORSE
+}
+
+model Variant {
+  id           String   @id
+  garmentId    String
+  blockId      String
+  uploadId     String
+  hexColor     String
+  createdAt    DateTime @default(now())
+  garment      Garment @relation(fields: [garmentId], references: [id])
+  block        OutfitBlock @relation(fields: [blockId], references: [id])
+  upload       Upload  @relation(fields: [uploadId], references: [id])
+  generations  Generation[]
+}
+
+model GenerationJob {
+  id            String   @id
+  outfitId      String
+  status        JobStatus
+  stopRequested Boolean  @default(false)
+  resumeToken   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  outfit        Outfit   @relation(fields: [outfitId], references: [id])
+  generations   Generation[]
+  logs          GenerationLog[]
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  STOPPED
+  COMPLETED
+  ERROR
+}
+
+model Generation {
+  id            String   @id
+  jobId         String
+  garmentId     String?
+  variantId     String?
+  angle         String
+  view          String
+  filePath      String
+  promptId      String
+  createdAt     DateTime @default(now())
+  job           GenerationJob @relation(fields: [jobId], references: [id])
+  garment       Garment? @relation(fields: [garmentId], references: [id])
+  variant       Variant? @relation(fields: [variantId], references: [id])
+}
+
+model GenerationLog {
+  id          String   @id
+  jobId       String
+  message     String
+  payload     Json?
+  createdAt   DateTime @default(now())
+  job         GenerationJob @relation(fields: [jobId], references: [id])
+}
