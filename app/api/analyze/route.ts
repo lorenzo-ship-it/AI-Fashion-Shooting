@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma, isPrismaClientNotGeneratedError, PRISMA_GENERATE_MESSAGE } from '@/lib/prisma';
 import { generateContent } from '@/lib/gemini';
 import { getUploadPath } from '@/lib/storage';
 import { BlockType, UploadKind } from '@prisma/client';
@@ -155,6 +155,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ outfitId: outfit.id, blocks });
   } catch (error) {
+    if (isPrismaClientNotGeneratedError(error)) {
+      return NextResponse.json({ error: PRISMA_GENERATE_MESSAGE }, { status: 500 });
+    }
     if (error instanceof PrismaClientKnownRequestError && error.code === 'P2021') {
       return NextResponse.json(
         {

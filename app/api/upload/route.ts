@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { extname } from 'node:path';
 import { saveBufferToStorage } from '@/lib/storage';
-import { prisma } from '@/lib/prisma';
+import { prisma, isPrismaClientNotGeneratedError, PRISMA_GENERATE_MESSAGE } from '@/lib/prisma';
 import exifr from 'exifr';
 import { Prisma } from '@prisma/client';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
@@ -78,6 +78,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ uploads });
   } catch (error) {
+    if (isPrismaClientNotGeneratedError(error)) {
+      return NextResponse.json({ error: PRISMA_GENERATE_MESSAGE }, { status: 500 });
+    }
     if (error instanceof PrismaClientKnownRequestError && error.code === 'P2021') {
       return NextResponse.json(
         {
