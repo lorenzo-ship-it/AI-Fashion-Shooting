@@ -1,20 +1,48 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# AI Fashion Shooting Studio
 
-# Run and deploy your AI Studio app
+Applicazione full-stack basata su Next.js 14 per trasformare foto di manichini e capi appesi in shooting e-commerce coerenti con Gemini 2.5 Flash Image.
 
-This contains everything you need to run your app locally.
+## Requisiti
+- Node.js 20+
+- Chiave API Gemini configurata in `.env.local`
 
-View your app in AI Studio: https://ai.studio/apps/drive/1t7Mpbmbx7u5rUt6guLNXzIGHuvxheplH
+## Setup
+1. Installazione dipendenze
+   ```bash
+   npm install
+   ```
+2. Configurare le variabili ambiente copiando `.env.example`
+   ```bash
+   cp .env.example .env.local
+   ```
+   Compilare `GEMINI_API_KEY` e, se necessario, personalizzare il percorso dello storage o del database SQLite.
+3. Generare il client Prisma
+   ```bash
+   npm run prisma:generate
+   ```
+4. Avviare il server di sviluppo
+   ```bash
+   npm run dev
+   ```
 
-## Run Locally
+L'applicazione è disponibile su [http://localhost:3000](http://localhost:3000).
 
-**Prerequisites:**  Node.js
+## Funzionalità principali
+- Upload massivo con ordinamento cronologico e analisi automatica tramite Gemini vision.
+- Editor dei blocchi outfit/varianti con override dei ruoli front/side/back/detail.
+- Mappatura categorie, codici articolo e associazione varianti colore.
+- Generazione shooting coerente (identità modella, luci, background #E6DFD3) con pipeline di prompt strutturata.
+- Chat operativa, gestione stop/resume job, rigenerazione puntuale e download zip per outfit/capo.
+- Salvataggio di metadati, log e percorsi file tramite Prisma/SQLite.
 
+## Struttura cartelle
+- `app/` – App Router e API routes.
+- `components/` – Componenti UI client-side.
+- `lib/` – Helpers (Gemini SDK, storage, pipeline di generazione, job manager, colori, Prisma).
+- `prisma/` – Schema del database.
+- `types/` – Tipi condivisi tra client e server.
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Note
+- Le immagini vengono memorizzate su filesystem locale (`/tmp/uploads` e `/tmp/outputs` per default). Personalizzare tramite variabili ambiente se necessario.
+- L'esecuzione dei job utilizza `p-queue` con concorrenza configurabile (`JOB_CONCURRENCY`).
+- In assenza di chiave Gemini le richieste AI falliranno: il sistema registra comunque gli errori per eventuali retry.
