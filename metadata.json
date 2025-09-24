@@ -1,0 +1,5 @@
+{
+  "name": "AI Fashion Image Generator",
+  "description": "An advanced e-commerce tool that analyzes uploaded clothing photos and generates a complete set of professional, studio-quality fashion images based on specific photographic prompts.",
+  "requestFramePermissions": []
+}
